@@ -1,0 +1,6 @@
+# Absolute paths also work when a notebook is opened from notebooks/.
+data_dir: ${env:KEDRO_DEMO_DATA_DIR,${project_root:}/data}
+source_uri: sqlite:///${data_dir}/source/source.db
+warehouse_uri: sqlite:///${data_dir}/warehouse/warehouse.db
+tracking_uri: ${env:MLFLOW_TRACKING_URI,sqlite:///${data_dir}/mlflow/mlflow.db}
+artifact_root: ${file_uri:${data_dir}/mlflow/artifacts}

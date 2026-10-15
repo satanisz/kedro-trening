@@ -1,0 +1,57 @@
+raw_training:
+  type: pandas.SQLQueryDataset
+  sql: SELECT * FROM training_properties ORDER BY property_id
+  credentials: source_db
+  metadata:
+    kedro-viz:
+      layer: raw
+
+raw_scoring:
+  type: pandas.SQLQueryDataset
+  sql: SELECT * FROM scoring_properties ORDER BY property_id
+  credentials: source_db
+  metadata:
+    kedro-viz:
+      layer: raw
+
+validated_training:
+  type: pandas.ParquetDataset
+  filepath: ${globals:data_dir}/intermediate/training.parquet
+  metadata:
+    kedro-viz:
+      layer: intermediate
+
+validated_scoring:
+  type: pandas.ParquetDataset
+  filepath: ${globals:data_dir}/intermediate/scoring.parquet
+  metadata:
+    kedro-viz:
+      layer: scoring
+
+model_bundle:
+  type: pickle.PickleDataset
+  filepath: ${globals:data_dir}/models/lasso.pkl
+  versioned: true
+  metadata:
+    kedro-viz:
+      layer: models
+
+training_report:
+  type: json.JSONDataset
+  filepath: ${globals:data_dir}/reports/training.json
+  versioned: true
+  metadata:
+    kedro-viz:
+      layer: reporting
+
+warehouse:
+  type: kedro_lasso.datasets.WarehouseDataset
+  credentials: warehouse_db
+  metadata:
+    kedro-viz:
+      layer: reporting
+
+warehouse_predictions:
+  type: pandas.SQLQueryDataset
+  sql: SELECT * FROM predictions ORDER BY batch_id, property_id
+  credentials: warehouse_db

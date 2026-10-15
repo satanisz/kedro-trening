@@ -1,0 +1,71 @@
+name: kedro-lasso
+
+x-app: &app
+  build: .
+  image: kedro-lasso-demo:local
+  init: true
+  environment: &environment
+    KEDRO_DEMO_DATA_DIR: /app/data
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    KEDRO_DISABLE_TELEMETRY: '1'
+    MLFLOW_ENABLE_TELEMETRY: 'false'
+    MLFLOW_DISABLE_AGENT_HINT: '1'
+    JUPYTER_TOKEN: ${KEDRO_DEMO_JUPYTER_TOKEN:-kedro-demo}
+  volumes:
+    - demo-data:/app/data
+    - ./src:/app/src:ro
+    - ./conf:/app/conf:ro
+    - ./notebooks:/app/notebooks
+
+services:
+  seed:
+    <<: *app
+    command: [demo, seed]
+
+  mlflow:
+    <<: *app
+    command: [demo, mlflow, --host, 0.0.0.0]
+    ports:
+      - '127.0.0.1:5000:5000'
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  pipeline:
+    <<: *app
+    command: [kedro, run]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      mlflow:
+        condition: service_healthy
+
+  lab:
+    <<: *app
+    command: [demo, lab, --host, 0.0.0.0]
+    ports:
+      - '127.0.0.1:8888:8888'
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/login')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  viz:
+    <<: *app
+    profiles: [viz]
+    command: [demo, viz, --host, 0.0.0.0]
+    ports:
+      - '127.0.0.1:4141:4141'
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+
+volumes:
+  demo-data:

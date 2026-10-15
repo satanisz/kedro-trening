@@ -1,0 +1,3 @@
+# Alternate environment: keeps the same databases, narrows the experiment grid.
+model:
+  alphas: [1.0, 1000.0]

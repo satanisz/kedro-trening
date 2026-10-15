@@ -1,0 +1,24 @@
+data:
+  id_column: property_id
+  target: price_pln
+  features:
+    - area_m2
+    - rooms
+    - building_age
+    - distance_km
+    - energy_score
+    - noise_feature
+split:
+  test_size: 0.2
+  validation_size: 0.2
+  random_state: 42
+model:
+  alphas: [0.01, 1.0, 100.0, 1000.0, 10000.0, 100000.0]
+  max_iter: 20000
+  tolerance: 0.0001
+tracking:
+  uri: ${globals:tracking_uri}
+  artifact_root: ${globals:artifact_root}
+  experiment_name: housing-lasso
+  run_name: lasso-sweep
+  dataset_name: synthetic-housing-v1
