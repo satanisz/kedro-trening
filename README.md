@@ -1,56 +1,56 @@
 # Kedro + JupyterLab + MLflow + SQLite
 
-Działający przykład przepływu ML: źródłowa baza SQLite → pipeline Kedro → eksperymenty Lasso w MLflow → predykcje w osobnej bazie SQLite. Notebook korzysta z tego samego katalogu, konfiguracji i kodu co uruchomienie wsadowe. Kedro-Viz jest opcjonalny.
+A runnable machine-learning workflow: source SQLite database → Kedro pipeline → Lasso experiments in MLflow → predictions in a separate SQLite database. The notebook uses the same catalog, configuration, and source code as batch execution. Kedro-Viz is optional.
 
-## Wymagania
+## Requirements
 
-Python 3.12 i [uv](https://docs.astral.sh/uv/getting-started/installation/). Wariant kontenerowy wymaga działającego Docker Engine oraz Docker Compose.
+Python 3.12 and [uv](https://docs.astral.sh/uv/getting-started/installation/). The container option requires a running Docker Engine and Docker Compose.
 
-## Instalacja
+## Installation
 
-Uruchom w katalogu projektu:
+Run this in the project directory:
 
 ```powershell
 uv sync --locked --python 3.12
 ```
 
-Dokładne wersje zależności zapisuje `uv.lock`. Stack zawiera Kedro 1.7.0, Kedro-Datasets 9.6.0, Kedro-Viz 12.5.0, JupyterLab 4.6.4 i MLflow 3.17.1.
+`uv.lock` records the resolved dependencies. The stack uses Kedro 1.7.0, Kedro-Datasets 9.6.0, Kedro-Viz 12.5.0, JupyterLab 4.6.4, and MLflow 3.17.1.
 
-## Konfiguracja
+## Configuration
 
-Domyślna konfiguracja działa bez zmian i bez pobierania danych. `conf/base/parameters.yml` definiuje cechy, podział danych i siatkę `alpha`. `conf/base/catalog.yml` definiuje wejścia SQL i wyjścia; `conf/base/globals.yml` — ścieżki i URI.
+The default configuration works without changes or external data. `conf/base/parameters.yml` defines the features, split, and `alpha` grid. `conf/base/catalog.yml` defines SQL inputs and outputs; `conf/base/globals.yml` defines paths and URIs.
 
-Opcjonalne zmienne środowiskowe: `KEDRO_DEMO_DATA_DIR` (bezwzględny katalog danych), `MLFLOW_TRACKING_URI` (zewnętrzny serwer śledzenia) i `KEDRO_DEMO_JUPYTER_TOKEN` (token lokalnego JupyterLab). Nadpisania projektu umieszczaj w `conf/local/`.
+Optional environment variables are `KEDRO_DEMO_DATA_DIR` for an absolute data directory, `MLFLOW_TRACKING_URI` for an external tracking server, and `KEDRO_DEMO_JUPYTER_TOKEN` for the local JupyterLab token. Put local overrides in `conf/local/`.
 
-## Pierwsze uruchomienie
+## Quick start
 
 ```powershell
 uv run demo stack
 ```
 
-Komenda tworzy źródło, jeśli go brakuje, wykonuje pipeline i uruchamia MLflow oraz JupyterLab. Działa w bieżącym terminalu; `Ctrl+C` zatrzymuje usługi. Logi usług są w `.runtime/logs/`.
+The command creates a source database when needed, runs the pipeline, and starts MLflow and JupyterLab. It runs in the current terminal; `Ctrl+C` stops the services. Service logs are written to `.runtime/logs/`.
 
-| Narzędzie | Adres |
+| Tool | Address |
 | --- | --- |
-| JupyterLab | [Otwórz laboratorium](http://127.0.0.1:8888/lab?token=kedro-demo) |
-| MLflow | [Otwórz eksperymenty](http://127.0.0.1:5000) |
-| Kedro-Viz, po włączeniu | [Otwórz graf](http://127.0.0.1:4141) |
+| JupyterLab | [Open the lab](http://127.0.0.1:8888/lab?token=kedro-demo) |
+| MLflow | [Open experiments](http://127.0.0.1:5000) |
+| Kedro-Viz, when enabled | [Open the graph](http://127.0.0.1:4141) |
 
-W JupyterLab otwórz [polski notebook](notebooks/01_kedro_mlflow_lab.ipynb) albo [English notebook](notebooks/02_kedro_mlflow_lab_en.ipynb) i wybierz **Run → Run All Cells**. W MLflow przełącz **Model training**, wybierz eksperyment **housing-lasso**, zakładkę **Runs** i rozwiń uruchomienie nadrzędne, żeby porównać wartości `alpha`. Link do JupyterLab używa domyślnego tokenu demonstracyjnego; po jego zmianie użyj adresu wypisanego przez launcher.
+In JupyterLab, open the [Polish notebook](notebooks/01_kedro_mlflow_lab.ipynb) or the [English notebook](notebooks/02_kedro_mlflow_lab_en.ipynb), then choose **Run → Run All Cells**. In MLflow, select **Model training**, open the **housing-lasso** experiment, go to **Runs**, and expand the parent run to compare `alpha` values. The JupyterLab link uses the demo token; after changing it, use the URL printed by the launcher.
 
-Z opcjonalnym grafem:
+Start the optional graph as well:
 
 ```powershell
 uv run demo stack --with-viz
 ```
 
-Jeżeli model już istnieje i chcesz jedynie otworzyć narzędzia:
+When a model already exists and only the tools are needed:
 
 ```powershell
 uv run demo stack --skip-run --with-viz
 ```
 
-## Uruchomienia wsadowe
+## Batch runs
 
 ```powershell
 uv run demo seed
@@ -58,17 +58,17 @@ uv run kedro run
 uv run demo inspect
 ```
 
-Źródło zawiera 1500 syntetycznych nieruchomości z ceną i 250 bez ceny. Pipeline porównuje sześć wartości `alpha`, wybiera model na walidacji i ocenia go na oddzielnym teście. MLflow przechowuje parametry, metryki, konfigurację, fingerprinty danych oraz model z imputerem i skalowaniem. Wynikowy SQLite przechowuje historię modeli, prób i partii predykcji.
+The source contains 1,500 synthetic properties with a price and 250 without one. The pipeline compares six `alpha` values, selects a model on validation data, and evaluates it on a separate test set. MLflow stores parameters, metrics, configuration, data fingerprints, and the model with its imputer and scaler. The output SQLite database stores model, trial, and prediction-batch history.
 
-| Zadanie | Polecenie |
+| Task | Command |
 | --- | --- |
-| Tylko przygotowanie danych treningowych | `uv run kedro run --pipeline prepare` |
-| Tylko trening i zapis modelu | `uv run kedro run --pipeline training` |
-| Predykcja istniejącym modelem | `uv run kedro run --pipeline scoring` |
-| Krótka siatka eksperymentów | `uv run kedro run --env quick --pipeline training` |
-| Zmiana seeda podziału | `uv run kedro run --params split.random_state=123` |
+| Prepare training data only | `uv run kedro run --pipeline prepare` |
+| Train and save a model only | `uv run kedro run --pipeline training` |
+| Score with an existing model | `uv run kedro run --pipeline scoring` |
+| Use the short experiment grid | `uv run kedro run --env quick --pipeline training` |
+| Change the split seed | `uv run kedro run --params split.random_state=123` |
 
-W osobnych terminalach można uruchomić `uv run demo mlflow`, `uv run demo lab` i `uv run demo viz`.
+Run `uv run demo mlflow`, `uv run demo lab`, and `uv run demo viz` in separate terminals to start individual services.
 
 ## Docker Compose
 
@@ -76,24 +76,24 @@ W osobnych terminalach można uruchomić `uv run demo mlflow`, `uv run demo lab`
 docker compose up --build
 ```
 
-Compose uruchamia seed, serwer MLflow, pipeline i JupyterLab w tej kolejności. Profil `viz` dodaje wizualizację:
+Compose starts seed, the MLflow server, the pipeline, and JupyterLab in that order. The `viz` profile adds visualisation:
 
 ```powershell
 docker compose --profile viz up --build
 ```
 
-Kolejne wykonanie wsadowe i zatrzymanie usług:
+Run another batch job and stop the services:
 
 ```powershell
 docker compose run --rm pipeline kedro run --env quick
 docker compose down
 ```
 
-Dane kontenerów są w wolumenie `kedro-lasso_demo-data`; lokalne uruchomienie używa katalogu `data/`. To osobne środowiska. `down` zachowuje wolumen. Kod, konfiguracja i notebooki są montowane z projektu, więc zmiany są widoczne bez przebudowy obrazu. Zmiana zależności wymaga ponownego builda.
+Container data is stored in the `kedro-lasso_demo-data` volume; local execution uses `data/`. These are separate environments. `down` keeps the volume. Source code, configuration, and notebooks are mounted from the project, so changes are available without rebuilding the image. Dependency changes require a rebuild.
 
-## Dokumentacja i testy
+## Documentation and tests
 
-[Architektura i schemat baz](docs/architecture.md) opisują granice komponentów, transakcje, zmiany konfiguracji i ograniczenia demonstratora. [Scenariusz demonstracji](docs/walkthrough.md) prowadzi przez notebook i MLflow.
+[Architecture and database schema](docs/architecture.md) explain component boundaries, transactions, configuration changes, and demo limitations. The [walkthrough](docs/walkthrough.md) guides you through the notebook and MLflow.
 
 ```powershell
 uv run pytest -q
@@ -102,6 +102,6 @@ uv run ruff format --check src tests scripts
 uv run python scripts/verify_notebook.py
 ```
 
-Testy integracyjne i weryfikator notebooka używają oddzielnych baz tymczasowych. Notebook po weryfikacji zapisuje się jako `.runtime/executed_notebook.ipynb`. Workflow CI uruchamia te same kontrole na Windows i Linux.
+Integration tests and the notebook verifier use separate temporary databases. The verifier saves both executed notebooks as `.runtime/executed_<notebook-name>.ipynb`. The CI workflow runs the same checks on Windows and Linux.
 
-To demonstrator architektury do pracy lokalnej: SQLite zakłada małą liczbę zapisujących procesów, a usługi są udostępniane na interfejsie loopback. Szczegóły przejścia do środowiska współdzielonego opisuje dokumentacja architektury.
+This is a local architecture demonstration: SQLite assumes few concurrent writers, and services bind to the loopback interface. See the architecture document for the path to shared infrastructure.

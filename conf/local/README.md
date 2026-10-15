@@ -1,3 +1,3 @@
-Lokalne nadpisania `credentials.yml`, `globals.yml` i `parameters*.yml`.
-Pliki w tym katalogu (poza tym README i .gitkeep) są ignorowane przez Git.
-Przykład połączenia z inną bazą: patrz `docs/architecture.md`.
+Local overrides for `credentials.yml`, `globals.yml`, and `parameters*.yml` belong here.
+Files in this directory, except this README and `.gitkeep`, are ignored by Git.
+See `docs/architecture.md` for a connection override example.

@@ -1,4 +1,4 @@
-"""Execute both teaching notebooks against isolated databases, without altering demo data."""
+"""Execute both teaching notebooks against isolated databases without altering demo data."""
 
 import os
 import sys

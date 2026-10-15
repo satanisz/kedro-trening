@@ -1,43 +1,43 @@
-# Scenariusz demonstracji
+# Demonstration walkthrough
 
-## 1. Pierwszy przebieg
+## 1. First run
 
 ```powershell
 uv sync --locked --python 3.12
 uv run demo stack --with-viz
 ```
 
-Launcher wykonuje pipeline, a następnie uruchamia narzędzia. Po starcie zobaczysz URL-e usług i lokalizację logów. Daj usługom chwilę na inicjalizację; w razie błędu sprawdź `.runtime/logs/`.
+The launcher executes the pipeline and then starts the tools. It prints service URLs and log locations. If a service fails to start, inspect `.runtime/logs/`.
 
-## 2. JupyterLab: klient projektu
+## 2. JupyterLab as a project client
 
-Otwórz [JupyterLab](http://127.0.0.1:8888/lab?token=kedro-demo), potem `notebooks/01_kedro_mlflow_lab.ipynb`. Użyj kernela środowiska projektu. `demo lab` ustawia go domyślnie; notebook ma też jawne wczytanie rozszerzenia Kedro.
+Open [JupyterLab](http://127.0.0.1:8888/lab?token=kedro-demo), then open `notebooks/02_kedro_mlflow_lab_en.ipynb`. Use the project environment kernel. `demo lab` configures it by default, and the notebook explicitly loads the Kedro extension.
 
-Wykonuj komórki kolejno albo wybierz **Run → Run All Cells**. Obserwuj:
+Run the cells in order or choose **Run → Run All Cells**. Observe:
 
-1. Odczyt SQLite przez `catalog.load('raw_training')`.
-2. Ponowne użycie `validate_frame()` z `src/` podczas eksploracji.
-3. Wykonanie pełnego pipeline’u w nowej sesji z inną siatką `alpha`.
-4. Odczyt raportu, porównanie regularyzacji i współczynników modelu.
-5. Odczyt drugiej bazy przez katalog.
-6. Scoring bez treningu i odtworzenie modelu bez Kedro przez MLflow.
+1. SQLite loading through `catalog.load('raw_training')`.
+2. Reuse of `validate_frame()` from `src/` during exploration.
+3. A complete pipeline run in a new session with a different `alpha` grid.
+4. Reading the report and comparing regularisation with model coefficients.
+5. Reading the output database through the catalog.
+6. Scoring without training and restoring a model through MLflow without Kedro.
 
-Po uruchomieniu sekcji treningowej przejdź do MLflow, aby obejrzeć nowe runy. Po zmianie kodu lub YAML użyj `%reload_kedro` i nowej sesji do wykonania.
+After the training cells finish, switch to MLflow to inspect the new runs. After changing code or YAML, use `%reload_kedro` and create a new session for execution.
 
-## 3. MLflow: czego szukać
+## 3. What to inspect in MLflow
 
-Otwórz [MLflow](http://127.0.0.1:5000), przełącz **Model training**, wybierz eksperyment `housing-lasso` i zakładkę **Runs**. Domyślny widok GenAI pokazuje inne narzędzia niż potrzebne do regresji.
+Open [MLflow](http://127.0.0.1:5000), switch to **Model training**, select the `housing-lasso` experiment, and open **Runs**. The default GenAI view exposes tools that are not relevant to this regression workflow.
 
-- `lasso-sweep` to przebieg z konfiguracji YAML; `notebook-sweep` pochodzi z notebooka.
-- Każdy ma podrzędne runy `alpha=...`. Porównaj `validation_rmse` i liczbę niezerowych współczynników.
-- Nadrzędny run ma `best_alpha`, `test_rmse`, `test_mae`, `test_r2` i metryki baseline.
-- W artefaktach znajdziesz konfigurację, fingerprinty, ID podziałów, współczynniki i raport. Model jest zalogowany jako `lasso`.
+- `lasso-sweep` comes from the YAML configuration; `notebook-sweep` comes from the notebook.
+- Each parent run has child runs named `alpha=...`. Compare `validation_rmse` and the number of non-zero coefficients.
+- The parent run records `best_alpha`, `test_rmse`, `test_mae`, `test_r2`, and baseline metrics.
+- Its artifacts contain configuration, fingerprints, split IDs, coefficients, and a report. The model is logged as `lasso`.
 
-Domyślny wynik dla danych `seed=42` to `alpha=100`, testowy RMSE około 31,6 tys. PLN i R² około 0,994. Porównuj go z baseline i pamiętaj, że dane są syntetyczne. Inna siatka lub podział może zmienić wybór i metryki.
+For `seed=42`, the default grid selects `alpha=100`, with a test RMSE of about 31.6 thousand PLN and R² of about 0.994. Compare it with the baseline and remember that the data is synthetic. A different grid or split can change selection and metrics.
 
-## 4. Baza wynikowa i niezależny scoring
+## 4. Output database and independent scoring
 
-W drugim terminalu:
+In another terminal:
 
 ```powershell
 uv run demo inspect
@@ -45,7 +45,7 @@ uv run kedro run --pipeline scoring
 uv run demo inspect
 ```
 
-Powstaje kolejna partia 250 predykcji dla tego samego modelu; nie powstają nowe runy treningowe. W SQLite możesz sprawdzić:
+This creates another batch of 250 predictions for the same model without creating new training runs. Query the local SQLite database with:
 
 ```sql
 SELECT b.batch_id, b.run_id, b.n_rows, m.best_alpha, m.test_rmse
@@ -60,19 +60,19 @@ ORDER BY b.created_at DESC, p.property_id
 LIMIT 10;
 ```
 
-Lokalna baza to `data/warehouse/warehouse.db`. Przy Compose jest we współdzielonym wolumenie pod `/app/data/warehouse/warehouse.db`.
+The local database is `data/warehouse/warehouse.db`. With Compose, it is in the shared volume at `/app/data/warehouse/warehouse.db`.
 
-## 5. Opcjonalny graf
+## 5. Optional graph
 
-W [Kedro-Viz](http://127.0.0.1:4141) wybierz pipeline domyślny, `training` albo `scoring`. Zwróć uwagę, że scoring zależy od zapisanego modelu i danych wejściowych, a nie od notebooka. Węzły mają tagi; katalog definiuje warstwy raw/intermediate/models/scoring/reporting.
+In [Kedro-Viz](http://127.0.0.1:4141), select the default, `training`, or `scoring` pipeline. Notice that scoring depends on a saved model and source data, not on the notebook. Nodes have tags; the catalog defines the raw, intermediate, models, scoring, and reporting layers.
 
-## 6. Drobna zmiana architektury przez konfigurację
+## 6. Make a small configuration-only change
 
 ```powershell
 uv run kedro run --env quick --pipeline training
 uv run kedro run --pipeline scoring
 ```
 
-Środowisko `quick` zmniejsza siatkę do dwóch wartości `alpha`. Model jest zapisany jako nowa wersja, a scoring ładuje najnowszą. Potem przywróć pełny trening przez zwykłe `uv run kedro run`.
+The `quick` environment narrows the grid to two `alpha` values. Training saves a new model version, and scoring loads the latest version. Run `uv run kedro run` to return to the full training grid.
 
-Zakończenie lokalnego stacka: `Ctrl+C` w jego terminalu. Dla Compose użyj `docker compose down`; dane pozostają w wolumenie.
+Stop the local stack with `Ctrl+C` in its terminal. For Compose, run `docker compose down`; data remains in the volume.

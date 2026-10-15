@@ -1,76 +1,76 @@
-# Architektura projektu
+# Project architecture
 
-## Podział odpowiedzialności
+## Component boundaries
 
-Kedro odpowiada za graf zależności, konfigurację, katalog danych i wykonanie node’ów. JupyterLab służy do eksploracji i uruchamiania tego samego kodu. MLflow śledzi eksperymenty i przechowuje model do odtworzenia poza Kedro. Kedro-Viz jedynie wizualizuje pipeline; żaden krok obliczeniowy nie wymaga uruchomionego UI.
+Kedro owns the dependency graph, configuration, data catalog, and node execution. JupyterLab explores and runs the same code. MLflow tracks experiments and stores a model that can be restored outside Kedro. Kedro-Viz only visualises the pipeline; no processing step depends on its UI.
 
 ```mermaid
 flowchart LR
-    source[(source.db)] --> validate[Walidacja treningu]
+    source[(source.db)] --> validate[Validate training data]
     validate --> parquet[Parquet]
-    parquet --> split[Train 60% / val 20% / test 20%]
-    split --> train[Eksperymenty Lasso]
-    train --> mlflow[(MLflow SQLite + artefakty)]
-    train --> model[Wersjonowany model + raport]
-    source --> scoring[Walidacja scoringu]
+    parquet --> split[Train 60% / validation 20% / test 20%]
+    split --> train[Lasso experiments]
+    train --> mlflow[(MLflow SQLite + artifacts)]
+    train --> model[Versioned model + report]
+    source --> scoring[Validate scoring data]
     model --> scoring
-    scoring --> predict[Predykcje]
+    scoring --> predict[Predictions]
     model --> predict
     predict --> warehouse[(warehouse.db)]
-    lab[JupyterLab] -. katalog i nowe sesje .-> train
+    lab[JupyterLab] -. catalog and new sessions .-> train
 ```
 
-| Plik lub katalog | Odpowiedzialność |
+| Path | Responsibility |
 | --- | --- |
-| `src/kedro_lasso/domain.py` | Kontrakty danych, konstrukcja sklearn Pipeline, metryki |
-| `training.py` | Podział danych, eksperymenty, wybór i zapis modelu do MLflow |
-| `scoring.py` | Predykcja i budowa partii wynikowej |
-| `datasets.py` | Adapter wynikowej bazy SQL; schemat i transakcja |
-| `pipelines/` | Deklaracje node’ów i ich wejść/wyjść |
-| `pipeline_registry.py` | Składanie pipeline’ów `prepare`, `training`, `scoring`, domyślnego |
-| `commands.py` | Operacje lokalne: seed, podgląd wyników, serwisy, supervisor |
-| `conf/base/` | Wspólne parametry, katalog i połączenia demonstracyjne |
-| `conf/local/` | Lokalne nadpisania, ignorowane przez Git |
-| `conf/quick/` | Alternatywny zestaw parametrów eksperymentu |
-| `notebooks/` | Klient eksploracyjny tego samego projektu |
-| `tests/` | Kontrakty, rozłączne podziały, zapis i pełny przebieg |
+| `src/kedro_lasso/domain.py` | Data contracts, sklearn pipeline construction, and metrics |
+| `training.py` | Splits, experiments, model selection, and MLflow logging |
+| `scoring.py` | Batch inference and prediction-batch construction |
+| `datasets.py` | SQL output adapter, schema, and transaction |
+| `pipelines/` | Node declarations and their inputs and outputs |
+| `pipeline_registry.py` | `prepare`, `training`, `scoring`, and default pipeline composition |
+| `commands.py` | Local seed, inspection, service, and supervisor operations |
+| `conf/base/` | Shared parameters, catalog, and demo connections |
+| `conf/local/` | Git-ignored local overrides |
+| `conf/quick/` | Alternate experiment parameters |
+| `notebooks/` | Exploratory client for the project |
+| `tests/` | Contracts, disjoint splits, persistence, and end-to-end flow |
 
-Nie używamy pluginu `kedro-mlflow`. Jawna integracja MLflow w treningu utrzymuje zależność od niewielkiego API śledzenia eksperymentów. Własny adapter SQL jest potrzebny, aby model, próby, nagłówek partii i wszystkie predykcje trafiły do bazy w jednej transakcji. Źródło i odczyt wyników korzystają ze standardowego `pandas.SQLQueryDataset`.
+The project does not use the `kedro-mlflow` plugin. The explicit MLflow integration in training keeps the dependency surface small. A custom SQL adapter writes the model, trials, batch header, and every prediction in one transaction. Source reads and output reads use the standard `pandas.SQLQueryDataset`.
 
-## Dane i magazyny
+## Data and stores
 
-Domyślny katalog roboczy to `data/`; `KEDRO_DEMO_DATA_DIR` pozwala wskazać inny katalog bezwzględny.
+The default working directory is `data/`; set `KEDRO_DEMO_DATA_DIR` to use another absolute directory.
 
-| Ścieżka | Zawartość |
+| Path | Contents |
 | --- | --- |
-| `source/source.db` | Tabele `training_properties` i `scoring_properties` |
-| `warehouse/warehouse.db` | Modele, próby, partie i predykcje |
-| `mlflow/mlflow.db` | Metadane MLflow, eksperymenty, runy i metryki |
-| `mlflow/artifacts/` | Modele sklearn, konfiguracja, podziały i raporty MLflow |
-| `intermediate/` | Ostatnie zwalidowane dane w Parquet |
-| `models/lasso.pkl/<wersja>/` | Model bundle z modelem, schematem cech i raportem |
-| `reports/training.json/<wersja>/` | Raport danego wykonania Kedro |
+| `source/source.db` | `training_properties` and `scoring_properties` tables |
+| `warehouse/warehouse.db` | Model, trial, batch, and prediction history |
+| `mlflow/mlflow.db` | MLflow metadata, experiments, runs, and metrics |
+| `mlflow/artifacts/` | sklearn models, configuration, splits, and MLflow reports |
+| `intermediate/` | Last validated data as Parquet |
+| `models/lasso.pkl/<version>/` | Model bundle with the fitted model, feature schema, and report |
+| `reports/training.json/<version>/` | Report for one Kedro execution |
 
-W SQLite MLflow przechowuje metadane; pliki modeli i pozostałe artefakty pozostają na dysku. Są to dwa magazyny z różnymi zadaniami.
+MLflow stores metadata in SQLite and model artifacts on disk; these are separate stores with different roles.
 
-Źródło jest deterministycznie generowane (`seed=42`). Ceny zależą liniowo od powierzchni, liczby pokoi, wieku, odległości i wskaźnika energetycznego. `noise_feature` nie ma wpływu na cenę. Dwie cechy mają losowe braki. To dane demonstracyjne; metryki nie opisują rzeczywistego rynku nieruchomości.
+The source is generated deterministically with `seed=42`. Price is a linear function of area, room count, building age, distance, and energy score. `noise_feature` has no effect. Two features have random missing values. This is demo data; metrics do not describe a real housing market.
 
-`demo seed` nie nadpisuje istniejących tabel. Częściowo istniejące źródło powoduje błąd z instrukcją naprawy; generator nie naprawia go przez kasowanie danych. Do niezależnej demonstracji wskaż nowy `KEDRO_DEMO_DATA_DIR`.
+`demo seed` never overwrites existing tables. A partially present source produces an error rather than deleting data. Use a new `KEDRO_DEMO_DATA_DIR` for an independent demonstration.
 
-## Trening i brak przecieku informacji
+## Training and leakage prevention
 
-1. Walidacja wybiera jawne cechy, sprawdza typy liczbowe, ID, nieskończoności i target.
-2. Powstają rozłączne, odtwarzalne zbiory train/validation/test. Proporcje w konfiguracji odnoszą się do całego wejścia.
-3. Dla każdej wartości `alpha` tworzony jest osobny model `SimpleImputer(median) → StandardScaler → Lasso`. Imputer i scaler są dopasowywane tylko do train.
-4. Kandydaci są porównywani wyłącznie po walidacyjnym RMSE. Każdy kandydat to podrzędny run MLflow.
-5. Wybrane `alpha` służy do ponownego dopasowania na train+validation. Ten końcowy model jest oceniany na teście. Raport zawiera też testowe metryki `DummyRegressor`, jako punkt odniesienia.
-6. Nadrzędny run MLflow zawiera model z sygnaturą, przykładem wejścia i wersjami zależności, raport, konfigurację, fingerprinty i ID rekordów w podziałach.
+1. Validation selects explicit features and checks numeric types, IDs, infinite values, and target values.
+2. It creates disjoint, reproducible train, validation, and test splits. The configured proportions refer to the entire input.
+3. Each `alpha` gets its own `SimpleImputer(median) → StandardScaler → Lasso` model. The imputer and scaler fit only on training data.
+4. Candidates are compared only by validation RMSE. Each candidate is a nested MLflow run.
+5. The selected `alpha` is refit on train plus validation and evaluated once on test data. The report also includes `DummyRegressor` test metrics as a baseline.
+6. The parent MLflow run records the input signature, example input, dependency versions, report, configuration, fingerprints, and split IDs.
 
-Kolejne świadome zmiany po obejrzeniu testowych wyników mogą prowadzić do dostrajania do testu. Przed oceną rzeczywistej jakości potrzebny jest nowy zbiór końcowy lub zewnętrzna walidacja. Projekt demonstruje pojedynczy podział; nie implementuje walidacji krzyżowej ani monitorowania dryfu.
+Repeated decisions after seeing test results can overfit the test set. Use a new final dataset or external validation before assessing real quality. The project demonstrates a single split; it does not implement cross-validation or drift monitoring.
 
-Lokalny bundle Kedro i model MLflow korzystają z serializacji Python. Wczytuj tylko własne lub zaufane artefakty. Wersjonowanie Kedro zachowuje kolejne modele; pipeline `scoring` domyślnie ładuje najnowszą wersję. Konkretną wersję można przypiąć przez standardową konfigurację `load_versions` Kedro zamiast polegać na najnowszym katalogu.
+The local Kedro bundle and MLflow model use Python serialization. Load only your own or trusted artifacts. Kedro versioning retains multiple models; the `scoring` pipeline loads the latest by default. Pin a concrete version with Kedro `load_versions` rather than depending on the newest directory when reproducibility is required.
 
-## Baza wynikowa
+## Output database
 
 ```mermaid
 erDiagram
@@ -106,30 +106,30 @@ erDiagram
     }
 ```
 
-`WarehouseDataset` używa jawnych typów, kluczy głównych i obcych. Przy SQLite włącza foreign keys, limit oczekiwania na blokadę oraz jawne transakcje. Utworzenie schematu i zapis danych podlegają transakcji. Ponowny zapis tego samego `batch_id` zastępuje tę partię atomowo; uszkodzony zapis wycofuje się w całości. Nowe uruchomienie scoringu generuje nowe `batch_id`, zachowując poprzednie partie.
+`WarehouseDataset` has explicit data types, primary and foreign keys. For SQLite it enables foreign keys, a lock wait timeout, and explicit transactions. Schema creation and writes share one transaction. Rewriting the same `batch_id` atomically replaces that batch; a failed write rolls back completely. A new scoring run creates a new `batch_id` and retains previous batches.
 
-Idempotencja dotyczy ponownego zapisu tej samej przygotowanej partii, a nie ponownego uruchomienia pipeline’u. Model i jego próby zapisują się przy pierwszym eksporcie predykcji. Pipeline `training` zapisuje model i raport, lecz sam nie tworzy wpisu w warehouse.
+Idempotency applies to writing the same prepared batch, not to rerunning the pipeline. A model and its trials are written on the first prediction export. The `training` pipeline saves the model and report but does not itself create a warehouse record.
 
-MLflow, pliki Kedro i wynikowy SQL nie uczestniczą we wspólnej transakcji rozproszonej. Jeżeli eksport SQL zawiedzie po treningu, run i model pozostają zapisane; po usunięciu przyczyny można wykonać `kedro run --pipeline scoring`. Stan MLflow `FINISHED` oznacza zakończenie treningu, nie gwarantuje zakończenia eksportu SQL.
+MLflow, Kedro files, and output SQL do not participate in one distributed transaction. If SQL export fails after training, the run and model remain available; fix the issue and run `kedro run --pipeline scoring`. An MLflow `FINISHED` state confirms training completion, not SQL-export completion.
 
-## JupyterLab i wykonanie wsadowe
+## JupyterLab and batch execution
 
-`demo lab` wywołuje `kedro jupyter lab`, ustawia kernel projektu i katalogi robocze w `.runtime/`. Notebook uzyskuje dostęp do `catalog`, `context`, `session` i `pipelines`. Odczyt przez `catalog.load()` korzysta z tych samych połączeń co pipeline.
+`demo lab` calls `kedro jupyter lab` and stores the project kernel and working directories under `.runtime/`. The notebook gets `catalog`, `context`, `session`, and `pipelines`. `catalog.load()` uses the same connections as the pipeline.
 
-Każde wykonanie pipeline’u w notebooku dostaje nowy `KedroSession`. `runtime_params` nadpisują parametry tylko tej sesji. `%reload_kedro` odświeża kontekst po zmianie kodu, konfiguracji lub zapisaniu nowego modelu. Logikę zaakceptowaną po eksperymencie przenosi się do `src/`; trwałe ustawienia do YAML. Zadanie cykliczne lub CI uruchamia potem `kedro run` bez notebooka i bez JupyterLab.
+Each pipeline run from the notebook gets a new `KedroSession`. `runtime_params` override configuration only for that session. `%reload_kedro` refreshes the context after changing code, configuration, or writing a model. Move accepted experimental logic into `src/` and persistent settings into YAML. Scheduled work and CI can then use `kedro run` without a notebook or JupyterLab.
 
-Wersja notebooka w repozytorium jest bez wyników wykonania. `scripts/verify_notebook.py` wykonuje wszystkie komórki na osobnych bazach i zapisuje egzemplarz z wynikami w `.runtime/executed_notebook.ipynb`.
+The committed notebooks have no outputs. `scripts/verify_notebook.py` executes both language versions against isolated databases and writes each output as `.runtime/executed_<notebook-name>.ipynb`.
 
-## Zmiany konfiguracji i rozszerzanie
+## Configuration changes and extension
 
-### Inne parametry
+### Other parameters
 
 ```powershell
 uv run kedro run --env quick --pipeline training
 uv run kedro run --params split.random_state=123
 ```
 
-W Pythonie, po `bootstrap_project(PROJECT_ROOT)`:
+After `bootstrap_project(PROJECT_ROOT)`, Python callers can use:
 
 ```python
 with KedroSession.create(
@@ -139,13 +139,11 @@ with KedroSession.create(
     session.run(pipeline_name="training")
 ```
 
-Parametry są scalane rekurencyjnie (`merge_strategy.parameters: soft`), więc środowisko i `runtime_params` mogą nadpisywać pojedyncze pola bez usuwania pozostałych ustawień grupy.
+Parameters merge recursively through `merge_strategy.parameters: soft`, so an environment or `runtime_params` can override one field without removing sibling settings. Changing features in `parameters.yml` affects new training. Independent scoring uses the feature schema stored with its model, even when current training parameters have changed.
 
-Zmiana cech w `parameters.yml` dotyczy nowego treningu. Niezależny scoring używa schematu zapisanego z modelem, również gdy bieżące parametry treningowe zostały zmienione.
+### Other databases
 
-### Inne bazy
-
-Plik `conf/local/credentials.yml` może zastąpić połączenia:
+`conf/local/credentials.yml` can replace the connections:
 
 ```yaml
 source_db:
@@ -154,28 +152,28 @@ warehouse_db:
   con: ${oc.env:WAREHOUSE_DATABASE_URI}
 ```
 
-Skonfiguruj zmienne w środowisku procesu oraz doinstaluj sterownik dla docelowej bazy przez `uv add`. Dostosuj SQL wejściowy w `catalog.yml`, zachowując kontrakt cech i integer ID. Generator `demo seed` jest przeznaczony wyłącznie do demonstracyjnego źródła; przy rzeczywistych danych uruchamiaj pipeline bez seeda.
+Set the environment variables for the process and install the destination driver with `uv add`. Update the input SQL in `catalog.yml` while preserving the feature contract and integer IDs. `demo seed` is for the demo source only; run the pipeline without seeding for real data.
 
-Adapter warehouse korzysta z SQLAlchemy Core. Lokalnie testowana jest implementacja SQLite; zmiana na PostgreSQL wymaga testu integracyjnego ze sterownikiem, docelowym serwerem i jego uprawnieniami. Równoległy eksport wielu procesów wymaga obsługi konfliktów/upsertów i retry dostosowanych do bazy. `create_all` zakłada schemat startowy; zmiany istniejących tabel wymagają migracji, których projekt nie implementuje.
+The warehouse adapter uses SQLAlchemy Core. SQLite is the tested local implementation; moving to PostgreSQL needs an integration test with its driver, target server, and permissions. Concurrent exports need conflict handling, upserts, and database-specific retries. `create_all` assumes an initial schema; existing-schema changes need migrations, which are not implemented here.
 
-### Inny model lub serwer śledzenia
+### Other models or tracking servers
 
-Model jest konstruowany w `domain.make_model()`. Przy zmianie rodziny estymatora zmień też parametry i zapis metadanych w `training.py`. `score_batch()` przyjmuje zapisany obiekt z metodą `predict()`.
+`domain.make_model()` constructs the model. When changing estimator family, update parameters and metadata logging in `training.py`; `score_batch()` accepts a saved object with `predict()`.
 
-`MLFLOW_TRACKING_URI` może wskazywać HTTP zamiast bezpośredniego SQLite. Przy HTTP lokalizacja artefaktów pochodzi z serwera MLflow; klient nie narzuca lokalnego `file://`. Compose używa właśnie tego wariantu, z proxy artefaktów i wspólnym wolumenem po stronie serwera. `demo mlflow` zawsze uruchamia własny, lokalny serwer na demonstracyjnej bazie; przy zewnętrznym serwerze wystarczą komendy treningu i `demo lab`.
+`MLFLOW_TRACKING_URI` can point to HTTP instead of direct SQLite. With HTTP, the MLflow server supplies artifact locations; the client does not force a local `file://` URI. Compose uses this arrangement with artifact proxying and a server-side shared volume. `demo mlflow` always starts the local server on the demo database; for an external server, training commands and `demo lab` are sufficient.
 
-Nie przenoś istniejącego pliku bazy MLflow bez jego artefaktów: metadane lokalnych eksperymentów zawierają bezwzględne URI plików. Nowy katalog roboczy powinien mieć nową bazę i własny katalog artefaktów.
+Do not move an existing MLflow database without its artifacts: local experiment metadata contains absolute file URIs. A new working directory should have its own database and artifact directory.
 
-## Granice demonstratora
+## Demo boundaries
 
-To lokalny stack z modularnym kodem, walidacją, wersjonowaniem modelu, śledzeniem eksperymentów, historią i transakcyjnym eksportem. Nie ma wdrożenia modelu jako API, automatycznego harmonogramu, rejestru promocji modeli, monitoringu dryfu, migracji baz, retencji, kopii zapasowych ani kontroli dostępu dla współdzielonej infrastruktury.
+This local stack demonstrates modular code, validation, model versioning, experiment tracking, history, and transactional output export. It does not implement model API deployment, scheduling, promotion registry, drift monitoring, database migrations, retention, backups, or access control for shared infrastructure.
 
-Uruchamiaj pojedynczy pipeline zapisujący naraz. Pliki Parquet mają stałe ścieżki, a SQLite ma ograniczenia współbieżnych zapisów. JupyterLab i MLflow powinny współpracować z jednym aktywnym treningiem. Do pracy zespołowej kolejne kroki to PostgreSQL dla metadanych i warehouse, obiektowy magazyn artefaktów, wydzielony serwer MLflow, uwierzytelnianie i orkiestrator uruchamiający niezmienny obraz. To propozycje rozwoju, nie już wdrożone funkcje.
+Run one writing pipeline at a time. Parquet files use fixed paths and SQLite has concurrent-write limits. JupyterLab and MLflow should share one active training run. For team use, the next steps are PostgreSQL for metadata and warehouse data, object storage for artifacts, a dedicated MLflow server, authentication, and an orchestrator running an immutable image. These are extension proposals, not implemented features.
 
-## Źródła dokumentacji
+## Documentation sources
 
-- [Kedro i Jupyter](https://docs.kedro.org/en/stable/integrations-and-plugins/notebooks_and_ipython/kedro_and_notebooks/)
+- [Kedro and Jupyter](https://docs.kedro.org/en/stable/integrations-and-plugins/notebooks_and_ipython/kedro_and_notebooks/)
 - [SQLQueryDataset](https://docs.kedro.org/projects/kedro-datasets/en/stable/api/kedro_datasets/pandas.SQLQueryDataset/)
-- [MLflow: backend stores](https://mlflow.org/docs/latest/tracking/backend-stores/)
-- [MLflow: artifact store](https://www.mlflow.org/docs/latest/self-hosting/architecture/artifact-store/)
+- [MLflow backend stores](https://mlflow.org/docs/latest/tracking/backend-stores/)
+- [MLflow artifact store](https://www.mlflow.org/docs/latest/self-hosting/architecture/artifact-store/)
 - [Kedro-Viz](https://docs.kedro.org/projects/kedro-viz/en/stable/)
