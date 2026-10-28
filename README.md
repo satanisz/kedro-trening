@@ -95,6 +95,11 @@ Container data is stored in the `kedro-lasso_demo-data` volume; local execution 
 
 [Architecture and database schema](docs/architecture.md) explain component boundaries, transactions, configuration changes, and demo limitations. The [walkthrough](docs/walkthrough.md) guides you through the notebook and MLflow.
 
+The [PL and EN workshops](trening/README.md) cover the complete model lifecycle in
+4.5 hours, with click-by-click instructions, executable notebooks, exercises, and
+instructor solutions. They add isolated demonstrations of model registration,
+release gates, pinned batch deployment, monitoring, retraining, and rollback.
+
 ```powershell
 uv run pytest -q
 uv run ruff check src tests scripts
